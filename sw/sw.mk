@@ -30,6 +30,7 @@ SN_RUNTIME_INCDIRS  += $(GW_GEN_DIR)
 SN_RUNTIME_INCDIRS  += $(GW_SNITCH_SW_DIR)/runtime/src
 SN_RUNTIME_HAL_HDRS  = $(GW_GEN_DIR)/gw_addrmap.h
 SN_RUNTIME_HAL_HDRS += $(GW_GEN_DIR)/gw_raw_addrmap.h
+SN_RUNTIME_HAL_HDRS += $(GW_GEN_DIR)/gw_noc_cfg.h
 
 #TODO(lleone): do we need this?
 SN_RVTESTS_BUILDDIR = $(GW_SNITCH_SW_DIR)/riscv-tests/build
@@ -49,6 +50,9 @@ SN_APPS += $(GW_SNITCH_SW_DIR)/apps/summa_gemm
 SN_APPS += $(GW_SNITCH_SW_DIR)/apps/power_benchmarks
 
 SN_TESTS = $(wildcard $(GW_SNITCH_SW_DIR)/tests/*.c)
+
+$(GW_GEN_DIR)/gw_noc_cfg.h: $(UTIL_DIR)/mako_render.py $(FLOO_CFG)
+	 $< -t $(SN_RUNTIME_SRCDIR)/gw_noc_cfg.h.tpl -y $(FLOO_CFG) -o $@
 
 include $(SN_ROOT)/make/sw.mk
 
@@ -94,3 +98,4 @@ sn-apps-clean: sn-clean-apps
 sw sw-tests: chs-sw-tests sn-tests sn-apps
 
 sw-clean sw-tests-clean: chs-sw-tests-clean sn-tests-clean sn-runtime-clean sn-apps-clean
+	rm $(GW_GEN_DIR)/*.h
