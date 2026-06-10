@@ -39,7 +39,7 @@ BENDER_LOCK = $(GW_ROOT)/Bender.lock
 # Bender flags #
 ################
 
-COMMON_TARGS += -t rtl -t cva6 -t cv64a6_imafdchsclic_sv39_wb -t snitch_cluster -t gw_gen_rtl
+COMMON_TARGS += -t rtl -t cva6 -t cv64a6_rt_hpdcache -t snitch_cluster -t gw_gen_rtl
 SIM_TARGS += -t simulation -t test -t idma_test
 
 #############
@@ -152,7 +152,7 @@ floo-clean: gw-addrmap-clean
 ###################
 
 PD_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/gwaihir-pd.git
-PD_COMMIT ?= 39ea3597b1b70712fc08561a749615ecc70d7b27
+PD_COMMIT ?= c62c1af33ed773181f67769ff1efc039cc0965f7
 PD_DIR = $(GW_ROOT)/pd
 .PHONY: init-pd clean-pd
 
