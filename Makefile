@@ -27,10 +27,6 @@ CHS_ROOT  = $(shell $(BENDER) path cheshire)
 SN_ROOT   = $(shell $(BENDER) path snitch_cluster)
 FLOO_ROOT = $(shell $(BENDER) path floo_noc)
 
-# Tiles configuration
-SN_CLUSTERS = $(shell $(FLOO_GEN) query -c $(FLOO_CFG) endpoints.cluster.num 2>/dev/null)
-L2_TILES = $(shell $(FLOO_GEN) query -c $(FLOO_CFG) endpoints.l2_spm.num 2>/dev/null)
-
 # Bender prerequisites
 BENDER_YML = $(GW_ROOT)/Bender.yml
 BENDER_LOCK = $(GW_ROOT)/Bender.lock
@@ -61,6 +57,8 @@ PEAKRDL_INCLUDES += $(CHS_PEAKRDL_INCLUDES)
 PEAKRDL_INCLUDES += -I $(GW_GEN_DIR)
 
 $(GW_GEN_DIR)/gw_soc_regs.sv: $(GW_GEN_DIR)/gw_soc_regs_pkg.sv
+$(GW_GEN_DIR)/gw_soc_regs_pkg.sv: SN_CLUSTERS = $(shell $(FLOO_GEN) query -c $(FLOO_CFG) endpoints.cluster.num 2>/dev/null)
+$(GW_GEN_DIR)/gw_soc_regs_pkg.sv: L2_TILES = $(shell $(FLOO_GEN) query -c $(FLOO_CFG) endpoints.l2_spm.num 2>/dev/null)
 $(GW_GEN_DIR)/gw_soc_regs_pkg.sv: $(GW_ROOT)/cfg/rdl/gw_soc_regs.rdl
 	$(PEAKRDL) regblock $< -o $(GW_GEN_DIR) --cpuif apb4-flat --default-reset arst_n -P Num_Clusters=$(SN_CLUSTERS) -P Num_Mem_Tiles=$(L2_TILES)
 
@@ -117,6 +115,7 @@ SN_GEN_DIR = $(GW_GEN_DIR)
 include $(SN_ROOT)/make/common.mk
 include $(SN_ROOT)/make/rtl.mk
 
+$(SN_CFG): SN_CLUSTERS = $(shell $(FLOO_GEN) query -c $(FLOO_CFG) endpoints.cluster.num 2>/dev/null)
 $(SN_CFG): $(FLOO_CFG)
 	@sed -i 's/nr_clusters: .*/nr_clusters: $(SN_CLUSTERS),/' $@
 
@@ -152,14 +151,17 @@ floo-clean: gw-addrmap-clean
 ###################
 
 PD_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/gwaihir-pd.git
-PD_COMMIT ?= 165c126fa4db911fe8e20440a08d7b2840169972
+PD_COMMIT ?= bbbf091d03961e21b881fbb88f19f2a6fc62c69a
 PD_DIR = $(GW_ROOT)/pd
-.PHONY: init-pd clean-pd
+.PHONY: init-pd clean-pd update-pd-commit
 
 init-pd: $(PD_DIR)
 $(PD_DIR):
 	git clone $(PD_REMOTE) $(PD_DIR)
 	cd $(PD_DIR) && git checkout $(PD_COMMIT)
+
+update-pd-commit:
+	sed -i 's/^PD_COMMIT ?= .*/PD_COMMIT ?= $(shell git -C $(PD_DIR) rev-parse HEAD)/' $(firstword $(MAKEFILE_LIST))
 
 clean-pd:
 	rm -rf $(PD_DIR)
@@ -210,8 +212,8 @@ include $(GW_ROOT)/target/sim/traces.mk
 # hw-only and informational goals. For unknown targets (e.g. app names), still run it.
 # %-all / %-clean cover all hw-all/hw-clean variants; vsim-% / gw-% cover sim/rdl targets.
 # Clean targets never need dep tracking regardless of subsystem.
-_GW_NO_DEPS_GOALS := help all clean traces annotate dvt-flist verible-fmt \
-                     init-pd clean-pd python-venv% %-all %-clean vsim-% gw-%
+_GW_NO_DEPS_GOALS := help all clean traces annotate dvt-flist slang-flist verible-fmt \
+                     init-pd clean-pd update-pd-commit python-venv% %-all %-clean vsim-% gw-%
 ifeq ($(filter-out $(_GW_NO_DEPS_GOALS),$(MAKECMDGOALS)),)
 # All requested goals are hw-only/informational — skip dep tracking.
 else
@@ -223,10 +225,22 @@ endif
 ########
 
 
-.PHONY: dvt-flist verible-fmt
+.PHONY: dvt-flist dvt-flist-clean verible-fmt slang-flist slang-flist-clean
 
-dvt-flist:
-	$(BENDER) script flist-plus $(COMMON_TARGS) $(SIM_TARGS) > .dvt/default.build
+DVT_FLIST   ?= $(GW_ROOT)/.dvt/default.build
+SLANG_FLIST ?= $(GW_ROOT)/sources.flist
+
+dvt-flist: $(DVT_FLIST)
+slang-flist: $(SLANG_FLIST)
+
+$(DVT_FLIST) $(SLANG_FLIST): $(BENDER_YML) $(BENDER_LOCK)
+	@mkdir -p $(@D)
+	$(BENDER) script flist-plus $(COMMON_TARGS) $(SIM_TARGS) --suppress E31 --top tb_gwaihir_top > $@
+
+dvt-flist-clean:
+	rm -f $(DVT_FLIST)
+slang-flist-clean:
+	rm -f $(SLANG_FLIST)
 
 verible-fmt:
 	$(VERIBLE_FMT) $(VERIBLE_FMT_ARGS) $(shell $(BENDER) script flist $(SIM_TARGS) --no-deps)
@@ -283,6 +297,7 @@ help:
 	@echo -e "${Green}traces               ${Black}Generate the better readable traces in .logs/trace_hart_<hart_id>.txt."
 	@echo -e "${Green}annotate             ${Black}Annotate the better readable traces in .logs/trace_hart_<hart_id>.s with the source code related with the retired instructions."
 	@echo -e "${Green}dvt-flist            ${Black}Generate a file list for the VSCode DVT plugin."
+	@echo -e "${Green}slang-flist          ${Black}Generate a file list for the slang LSP."
 	@echo -e "${Green}python-venv          ${Black}Create a Python virtual environment and install the required packages."
 	@echo -e "${Green}python-venv-clean    ${Black}Remove the Python virtual environment."
 	@echo -e "${Green}verible-fmt          ${Black}Format SystemVerilog files using Verible."
