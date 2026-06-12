@@ -14,7 +14,10 @@ working_dir/
 __pycache__
 
 # Generated source files
-.generated
+.generated/*
+
+# Bender
+Bender.local
 
 # Workspace symlinks
 .deps
@@ -34,6 +37,7 @@ modelsim.ini
 *.wlf
 .rtlbinary
 .chsbinary
+*.do
 
 # Software build files
 *.bin
@@ -54,4 +58,5 @@ gmon.out
 
 # LSP files
 .dvt
+.vscode
 sources.flist
