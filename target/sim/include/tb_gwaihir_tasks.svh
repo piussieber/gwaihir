@@ -17,32 +17,36 @@ import gwaihir_pkg::*;
 `CHESHIRE_TYPEDEF_ALL(, fix.vip.DutCfg)
 
 task automatic jtag_enable_tiles();
-  localparam logic [31:0] ClusterMask = (32'h1 << NumClusters) - 32'h1;
-  localparam logic [31:0] MemTileMask = (32'h1 << NumMemTiles) - 32'h1;
   $display("Resetting tiles and enabling clock...");
   fix.vip.jtag_init();
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, ClusterMask, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, MemTileMask, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, 32'h00000000, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, 32'h00000000, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, ClusterMask, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, MemTileMask, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_CLK_ENABLES_BASE_ADDR, ClusterMask, 1'b1);
-  fix.vip.jtag_write_reg32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_CLK_ENABLES_BASE_ADDR, MemTileMask, 1'b1);
+  for (int i = 0; i < NumClusters; i++) begin
+    fix.vip.jtag_write_reg32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b1, 1'b0);
+    fix.vip.jtag_write_reg32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b0, 1'b0);
+    fix.vip.jtag_write_reg32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b1, 1'b0);
+    fix.vip.jtag_write_reg32(`CLUSTER_CONFIG_CLK_BASE_ADDR(i), 1'b1, 1'b0);
+  end
+  for (int i = 0; i < NumMemTiles; i++) begin
+    fix.vip.jtag_write_reg32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b1, 1'b0);
+    fix.vip.jtag_write_reg32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b0, 1'b0);
+    fix.vip.jtag_write_reg32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b1, 1'b0);
+    fix.vip.jtag_write_reg32(`L2_SPM_CONFIG_CLK_BASE_ADDR(i), 1'b1, 1'b0);
+  end
 endtask
 
 task automatic slink_enable_tiles();
-  localparam logic [31:0] ClusterMask = (32'h1 << NumClusters) - 32'h1;
-  localparam logic [31:0] MemTileMask = (32'h1 << NumMemTiles) - 32'h1;
   $display("[SLINK] Resetting tiles and enabling clock...");
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, ClusterMask);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, MemTileMask);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, 32'h00000000);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, 32'h00000000);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_RSTS_BASE_ADDR, ClusterMask);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_RSTS_BASE_ADDR, MemTileMask);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_CLUSTER_CLK_ENABLES_BASE_ADDR, ClusterMask);
-  fix.vip.slink_write_32(`CHESHIRE_INTERNAL_GW_SOC_REGS_MEM_TILE_CLK_ENABLES_BASE_ADDR, MemTileMask);
+  for (int i = 0; i < NumClusters; i++) begin
+    fix.vip.slink_write_32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b1);
+    fix.vip.slink_write_32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b0);
+    fix.vip.slink_write_32(`CLUSTER_CONFIG_RST_BASE_ADDR(i), 1'b1);
+    fix.vip.slink_write_32(`CLUSTER_CONFIG_CLK_BASE_ADDR(i), 1'b1);
+  end
+  for (int i = 0; i < NumMemTiles; i++) begin
+    fix.vip.slink_write_32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b1);
+    fix.vip.slink_write_32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b0);
+    fix.vip.slink_write_32(`L2_SPM_CONFIG_RST_BASE_ADDR(i), 1'b1);
+    fix.vip.slink_write_32(`L2_SPM_CONFIG_CLK_BASE_ADDR(i), 1'b1);
+  end
 endtask
 
 // FAST_PRELOAD mode trick with virtual class to write directly to L2 sram module inside various for generate
@@ -77,7 +81,7 @@ end : gen_fastmode_class_per_l2_tile
 // Write a 32-bit word into an `tc_sram` at a given address
 task automatic fastmode_write_word(input longint addr, input logic [31:0] data);
   import floo_gwaihir_noc_pkg::*;
-  if (addr >= Sam[L2Spm0SamIdx].start_addr && addr < Sam[L2Spm0SamIdx+NumMemTiles-1].end_addr) begin
+  if (addr >= Sam[L2Spm0SamIdx].start_addr && addr < Sam[L2Spm0SamIdx+2*NumMemTiles-2].end_addr) begin
     // Selecting the correct mem_tile, sram bank, sram address and byte offset inside sram word
     int byte_offset  = addr[0                   +: SramByteOffsetWidth ];
     int sel_bank_col = addr[SramBankSelOffset   +: SramBankSelWidth    ];
@@ -85,7 +89,7 @@ task automatic fastmode_write_word(input longint addr, input logic [31:0] data);
     int sel_bank_row = addr[SramMacroSelOffset  +: SramMacroSelWidth   ];
     int sel_mem_tile = (addr - Sam[L2Spm0SamIdx].start_addr) / MemTileSize;
     l2_sram_class_list[sel_mem_tile][sel_bank_col][sel_bank_row].write_word(sram_addr, byte_offset, data);
-  end else if (addr >= Sam[Cheshire+1].start_addr && addr < Sam[Cheshire+1].end_addr) begin
+  end else if (addr >= Sam[CheshireInternalSamIdx].start_addr && addr < Sam[CheshireInternalSamIdx].end_addr) begin
     // TODO(fischeti): Implement Cheshire SPM fast preload
     $fatal(1, "[FAST_PRELOAD] Cheshire memory region not supported yet");
   end else begin
@@ -97,7 +101,7 @@ endtask
 // Read a 32-bit word into an `tc_sram` at a given address
 task automatic fastmode_read_word(input longint addr, output logic [31:0] data);
   import floo_gwaihir_noc_pkg::*;
-  if (addr >= Sam[L2Spm0SamIdx].start_addr && addr < Sam[L2Spm0SamIdx+NumMemTiles-1].end_addr) begin
+  if (addr >= Sam[L2Spm0SamIdx].start_addr && addr < Sam[L2Spm0SamIdx+2*NumMemTiles-2].end_addr) begin
     // Selecting the correct mem_tile, sram bank, sram address and byte offset inside sram word
     int byte_offset  = addr[0                   +: SramByteOffsetWidth ];
     int sel_bank_col = addr[SramBankSelOffset   +: SramBankSelWidth    ];
@@ -105,7 +109,7 @@ task automatic fastmode_read_word(input longint addr, output logic [31:0] data);
     int sel_bank_row = addr[SramMacroSelOffset  +: SramMacroSelWidth   ];
     int sel_mem_tile = (addr - Sam[L2Spm0SamIdx].start_addr) / MemTileSize;
     l2_sram_class_list[sel_mem_tile][sel_bank_col][sel_bank_row].read_word(sram_addr, byte_offset, data);
-  end else if (addr >= Sam[Cheshire+1].start_addr && addr < Sam[Cheshire+1].end_addr) begin
+  end else if (addr >= Sam[CheshireInternalSamIdx].start_addr && addr < Sam[CheshireInternalSamIdx].end_addr) begin
     $fatal(1, "[FAST_READ] Cheshire memory region not supported yet");
   end else begin
     $fatal(1, "[FAST_READ] Address 0x%h not in any supported memory region", addr);
@@ -123,7 +127,7 @@ task automatic fastmode_read();
     $error("[FAST_READ] File could not be open: l2mem.bin");
     return;
   end
-  for (longint w = Sam[L2Spm0SamIdx].start_addr; w < Sam[L2Spm0SamIdx+NumMemTiles-1].end_addr; w+=4) begin
+  for (longint w = Sam[L2Spm0SamIdx].start_addr; w < Sam[L2Spm0SamIdx+2*NumMemTiles-2].end_addr; w+=4) begin
     fastmode_read_word(w, data);
     $fwrite(fp, "%u", data);
   end
