@@ -160,11 +160,11 @@ floo-clean: gw-addrmap-clean
 ###################
 
 PD_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/gwaihir-pd.git
-PD_COMMIT ?= 5875cf3ec443660b2600117ab7db363885d7cfad
+PD_COMMIT ?= 9e12557f72bfb8d60133d811b7ca8103f5b53934
 PD_DIR = $(GW_ROOT)/pd
 
 PCIE_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/pcie.git
-PCIE_COMMIT ?= b98ea5cb3748761f0288c24cfc3ba286df67890e
+PCIE_COMMIT ?= 17bdc3024b9790c36600f327db3024f00b74f2c9
 PCIE_DIR = $(GW_ROOT)/.deps/pcie
 
 .PHONY: init-pd clean-pd update-pd-commit
