@@ -4,6 +4,8 @@
 //
 // Author: Tim Fischer <fischeti@iis.ee.ethz.ch>
 
+`include "axi/assign.svh"
+
 module gwaihir_top
   import gwaihir_pkg::*;
   import cheshire_pkg::*;
@@ -244,10 +246,23 @@ module gwaihir_top
   // UCIe tiles //
   ////////////////
 
+  // AXI narrow channels
+  floo_gwaihir_noc_pkg::axi_narrow_out_req_t [NumUcieTiles-1:0] ucie_axi_narrow_out_req;
+  floo_gwaihir_noc_pkg::axi_narrow_out_rsp_t [NumUcieTiles-1:0] ucie_axi_narrow_out_rsp;
+  floo_gwaihir_noc_pkg::axi_narrow_in_req_t  [NumUcieTiles-1:0] ucie_axi_narrow_in_req;
+  floo_gwaihir_noc_pkg::axi_narrow_in_rsp_t  [NumUcieTiles-1:0] ucie_axi_narrow_in_rsp;
+  // AXI wide channels
+  floo_gwaihir_noc_pkg::axi_wide_out_req_t   [NumUcieTiles-1:0] ucie_axi_wide_out_req;
+  floo_gwaihir_noc_pkg::axi_wide_out_rsp_t   [NumUcieTiles-1:0] ucie_axi_wide_out_rsp;
+  floo_gwaihir_noc_pkg::axi_wide_in_req_t    [NumUcieTiles-1:0] ucie_axi_wide_in_req;
+  floo_gwaihir_noc_pkg::axi_wide_in_rsp_t    [NumUcieTiles-1:0] ucie_axi_wide_in_rsp;
+
   for (genvar u = 0; u < NumUcieTiles; u++) begin : gen_ucietile
 
     localparam int UcieSamIdx = u + Ucie0SamIdx;
     localparam id_t UcieId = Sam[UcieSamIdx].idx;
+    localparam axi_narrow_out_addr_t UcieId_BaseAddr = Sam[UcieSamIdx].start_addr;
+    localparam axi_narrow_out_addr_t UcieId_AddrSize = Sam[Ucie0SamIdx].start_addr;
     localparam id_t UciePhysicalId = SamPhysical[UcieSamIdx].idx;
     localparam int UcieX = int'(UciePhysicalId.x);
     localparam int UcieY = int'(UciePhysicalId.y);
@@ -255,17 +270,41 @@ module gwaihir_top
     ucie_tile i_ucie_tile (
       .clk_i,
       .rst_ni,
-      .test_enable_i(test_mode_i),
-      .id_i         (UcieId),
-      .floo_req_o   (floo_req_out[UcieX][UcieY]),
-      .floo_rsp_i   (floo_rsp_in[UcieX][UcieY]),
-      .floo_wide_o  (floo_wide_out[UcieX][UcieY]),
-      .floo_req_i   (floo_req_in[UcieX][UcieY]),
-      .floo_rsp_o   (floo_rsp_out[UcieX][UcieY]),
-      .floo_wide_i  (floo_wide_in[UcieX][UcieY])
+      .test_enable_i       (test_mode_i),
+      .id_i                (UcieId),
+      .base_addr_i         (UcieId_BaseAddr),
+      .addr_size_i         (UcieId_AddrSize),
+      .floo_req_o          (floo_req_out[UcieX][UcieY]),
+      .floo_rsp_i          (floo_rsp_in[UcieX][UcieY]),
+      .floo_wide_o         (floo_wide_out[UcieX][UcieY]),
+      .floo_req_i          (floo_req_in[UcieX][UcieY]),
+      .floo_rsp_o          (floo_rsp_out[UcieX][UcieY]),
+      .floo_wide_i         (floo_wide_in[UcieX][UcieY]),
+      // loopback
+      .axi_narrow_out_req_o(ucie_axi_narrow_out_req[u]),
+      .axi_narrow_out_rsp_i(ucie_axi_narrow_out_rsp[u]),
+      .axi_narrow_in_req_i (ucie_axi_narrow_in_req[u]),
+      .axi_narrow_in_rsp_o (ucie_axi_narrow_in_rsp[u]),
+
+      .axi_wide_out_req_o(ucie_axi_wide_out_req[u]),
+      .axi_wide_out_rsp_i(ucie_axi_wide_out_rsp[u]),
+      .axi_wide_in_req_i (ucie_axi_wide_in_req[u]),
+      .axi_wide_in_rsp_o (ucie_axi_wide_in_rsp[u])
     );
 
   end
+
+  // loopback UCIe[0] -> UCIe[1]
+  `AXI_ASSIGN_REQ_STRUCT(ucie_axi_narrow_in_req[1], ucie_axi_narrow_out_req[0]);
+  `AXI_ASSIGN_RESP_STRUCT(ucie_axi_narrow_out_rsp[0], ucie_axi_narrow_in_rsp[1]);
+  `AXI_ASSIGN_REQ_STRUCT(ucie_axi_wide_in_req[1], ucie_axi_wide_out_req[0]);
+  `AXI_ASSIGN_RESP_STRUCT(ucie_axi_wide_out_rsp[0], ucie_axi_wide_in_rsp[1]);
+
+  // loopback UCIe[1] -> UCIe[0]
+  `AXI_ASSIGN_REQ_STRUCT(ucie_axi_narrow_in_req[0], ucie_axi_narrow_out_req[1]);
+  `AXI_ASSIGN_RESP_STRUCT(ucie_axi_narrow_out_rsp[1], ucie_axi_narrow_in_rsp[0]);
+  `AXI_ASSIGN_REQ_STRUCT(ucie_axi_wide_in_req[0], ucie_axi_wide_out_req[1]);
+  `AXI_ASSIGN_RESP_STRUCT(ucie_axi_wide_out_rsp[1], ucie_axi_wide_in_rsp[0]);
 
   ////////////////
   // PCIe tile  //
