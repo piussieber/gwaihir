@@ -22,6 +22,9 @@ SN_CFG	  ?= $(GW_ROOT)/cfg/snitch_cluster.json
 PLIC_CFG  ?= $(GW_ROOT)/cfg/rv_plic.cfg.hjson
 SLINK_CFG ?= $(GW_ROOT)/cfg/serial_link.hjson
 
+# L2 SPM base address, queried from the FlooNoC config so it stays in sync with FLOO_CFG
+L2_START_ADDR ?= $(shell $(FLOO_GEN) query -c $(FLOO_CFG) "endpoints.l2_spm.addr_range[0].start" 2>/dev/null | xargs printf '0x%x\n')
+
 # Root directories of dependencies
 CHS_ROOT  = $(shell $(BENDER) path cheshire)
 SN_ROOT   = $(shell $(BENDER) path snitch_cluster)
@@ -47,10 +50,12 @@ DOCS_DIR         ?= $(GW_ROOT)/docs
 DOCS_ADDRMAP_MD  ?= $(DOCS_DIR)/addressmap.md
 DOCS_SITE_DIR    ?= $(GW_GEN_DIR)/docs-site
 
-GW_RDL_ALL += $(GW_GEN_DIR)/gwaihir_addrmap.rdl
 GW_RDL_ALL += $(GW_GEN_DIR)/fll.rdl $(GW_GEN_DIR)/gw_chip_regs.rdl
 GW_RDL_ALL += $(GW_GEN_DIR)/snitch_cluster.rdl
 GW_RDL_ALL += $(wildcard $(GW_ROOT)/cfg/rdl/*.rdl)
+
+GW_RDL_CHS_ADDR = $(GW_GEN_DIR)/gwaihir_addrmap_64b.rdl
+GW_RDL_SN_ADDR = $(GW_GEN_DIR)/gwaihir_addrmap_32b.rdl
 
 PEAKRDL_INCLUDES += -I $(GW_ROOT)/cfg/rdl
 PEAKRDL_INCLUDES += -I $(SN_ROOT)/hw/snitch_cluster/src/snitch_cluster_peripheral
@@ -63,30 +68,38 @@ $(GW_GEN_DIR)/gw_tile_regs.sv: $(GW_GEN_DIR)/gw_tile_regs_pkg.sv
 $(GW_GEN_DIR)/gw_tile_regs_pkg.sv: $(GW_ROOT)/cfg/rdl/gw_tile_regs.rdl
 	$(PEAKRDL) regblock $< -o $(GW_GEN_DIR) --cpuif apb4-flat --default-reset arst_n
 
-$(GW_GEN_DIR)/gwaihir_addrmap.rdl: $(FLOO_CFG)
+$(GW_RDL_CHS_ADDR) $(GW_RDL_SN_ADDR): $(FLOO_CFG)
 	$(FLOO_GEN) rdl -c $(FLOO_CFG) -o $(GW_GEN_DIR) --as-mem --memwidth=32
 
 # Those are dummy RDL files, for generation without access to the PD repository.
 $(GW_GEN_DIR)/fll.rdl $(GW_GEN_DIR)/gw_chip_regs.rdl: | $(GW_GEN_DIR)
 	@touch $@
 
-$(GW_GEN_DIR)/gw_addrmap.h: $(GW_GEN_DIR)/gwaihir_addrmap.rdl $(GW_RDL_ALL)
+# Cheshire
+$(GW_GEN_DIR)/gw_addrmap_64b.h: $(GW_RDL_CHS_ADDR) $(GW_RDL_ALL)
 	$(PEAKRDL) c-header $< $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) -o $@ -i -b ltoh
 
-$(GW_GEN_DIR)/gw_addrmap.svh: $(GW_RDL_ALL)
+$(GW_GEN_DIR)/gw_addrmap_64b.svh: $(GW_RDL_CHS_ADDR) $(GW_RDL_ALL)
 	$(PEAKRDL) raw-header $< -o $@ $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) --format svh --no-prefix
 
-$(GW_GEN_DIR)/gw_raw_addrmap.h: $(GW_RDL_ALL)
+$(GW_GEN_DIR)/gw_raw_addrmap_64b.h: $(GW_RDL_CHS_ADDR) $(GW_RDL_ALL)
+	$(PEAKRDL) raw-header $< -o $@ $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) --format c --base-name gw
+
+# Snitch
+$(GW_GEN_DIR)/gw_addrmap_32b.h: $(GW_RDL_SN_ADDR) $(GW_RDL_ALL)
+	$(PEAKRDL) c-header $< $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) -o $@ -i -b ltoh
+
+$(GW_GEN_DIR)/gw_raw_addrmap_32b.h: $(GW_RDL_SN_ADDR) $(GW_RDL_ALL)
 	$(PEAKRDL) raw-header $< -o $@ $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) --format c --base-name gw
 
 GW_RDL_HW_ALL += $(GW_GEN_DIR)/gw_tile_regs.sv
 GW_RDL_HW_ALL += $(GW_GEN_DIR)/gw_tile_regs_pkg.sv
-GW_RDL_HW_ALL += $(GW_GEN_DIR)/gw_addrmap.svh
+GW_RDL_HW_ALL += $(GW_GEN_DIR)/gw_addrmap_64b.svh
 
 .PHONY: docs docs-build docs-serve docs-clean rdl-markdown
 
 docs rdl-markdown: $(DOCS_ADDRMAP_MD)
-$(DOCS_ADDRMAP_MD): $(GW_GEN_DIR)/gwaihir_addrmap.rdl $(GW_RDL_ALL) | $(DOCS_DIR)
+$(DOCS_ADDRMAP_MD): $(GW_RDL_CHS_ADDR) $(GW_RDL_ALL) | $(DOCS_DIR)
 	$(PEAKRDL) markdown $< $(PEAKRDL_INCLUDES) $(PEAKRDL_DEFINES) -o $@
 
 $(DOCS_DIR):
@@ -153,18 +166,18 @@ $(GW_GEN_DIR)/floo_gwaihir_noc_pkg.sv: $(FLOO_CFG)
 
 floo-clean: gw-addrmap-clean
 	rm -f $(GW_GEN_DIR)/floo_gwaihir_noc_pkg.sv
-	rm -f $(GW_GEN_DIR)/gwaihir_addrmap.rdl
+	rm -f $(GW_RDL_CHS_ADDR) $(GW_RDL_SN_ADDR)
 
 ###################
 # Physical Design #
 ###################
 
 PD_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/gwaihir-pd.git
-PD_COMMIT ?= 5875cf3ec443660b2600117ab7db363885d7cfad
+PD_COMMIT ?= ba7c3bac5f0ca0a3bce1b430e125d6205f65aec3
 PD_DIR = $(GW_ROOT)/pd
 
 PCIE_REMOTE ?= git@iis-git.ee.ethz.ch:gwaihir/pcie.git
-PCIE_COMMIT ?= b98ea5cb3748761f0288c24cfc3ba286df67890e
+PCIE_COMMIT ?= 17bdc3024b9790c36600f327db3024f00b74f2c9
 PCIE_DIR = $(GW_ROOT)/.deps/pcie
 
 .PHONY: init-pd clean-pd update-pd-commit
@@ -275,15 +288,15 @@ help:
 	@echo -e "Makefile ${Green}targets${Black} for gwaihir"
 	@echo -e "Use 'make <target>' where <target> is one of:"
 	@echo -e ""
-	@echo -e "${Green}help           	     ${Black}Show an overview of all Makefile targets."
+	@echo -e "${Green}help           	   ${Black}Show an overview of all Makefile targets."
 	@echo -e ""
 	@echo -e "General targets:"
 	@echo -e "${Green}all                  ${Black}Alias for gwaihir-hw-all."
 	@echo -e "${Green}clean                ${Black}Alias for gwaihir-hw-clean."
 	@echo -e ""
 	@echo -e "Source generation targets:"
-	@echo -e "${Green}gwaihir-hw-all     ${Black}Build all RTL."
-	@echo -e "${Green}gwaihir-hw-clean   ${Black}Clean everything."
+	@echo -e "${Green}gwaihir-hw-all       ${Black}Build all RTL."
+	@echo -e "${Green}gwaihir-hw-clean     ${Black}Clean everything."
 	@echo -e "${Green}floo-hw-all          ${Black}Generate FlooNoC RTL."
 	@echo -e "${Green}floo-clean           ${Black}Clean FlooNoC RTL."
 	@echo -e "${Green}sn-hw-all            ${Black}Generate Snitch Cluster wrapper RTL."
