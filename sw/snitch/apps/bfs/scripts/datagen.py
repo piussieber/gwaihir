@@ -13,7 +13,7 @@ import os
 import random
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../../../util/sim/"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../../../../util/"))
 import data_utils  # noqa: E402
 from data_utils import format_scalar_definition, format_array_definition, \
                        format_array_declaration, DataGen, from_bits  # noqa: E402
