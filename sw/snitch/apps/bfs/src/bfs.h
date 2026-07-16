@@ -96,7 +96,7 @@ void bfs_job(void *args) {
         uint32_t *graph_adjacencies = (uint32_t *)(local_args->graph_adjacencies_addr);
 
         size_t size_offsets = (num_vertices_frac + 1) * sizeof(uint32_t);
-        local_graph_offsets = snrt_l1_alloc_cluster_local(size_offsets, sizeof(uint32_t));
+        local_graph_offsets = (uint32_t *) snrt_l1_alloc_cluster_local(size_offsets, sizeof(uint32_t));
 
         // Load offsets
         if (snrt_is_dm_core()) {
@@ -113,7 +113,7 @@ void bfs_job(void *args) {
         uint32_t start_edge = local_graph_offsets[0];
         uint32_t num_edges = local_graph_offsets[num_vertices_frac] - start_edge;
         uint32_t size_adjacencies = num_edges * sizeof(uint32_t);
-        local_graph_adjacencies = snrt_l1_alloc_cluster_local(size_adjacencies, sizeof(uint32_t));
+        local_graph_adjacencies = (uint32_t *) snrt_l1_alloc_cluster_local(size_adjacencies, sizeof(uint32_t));
 
         // Load adjacencies
         if (snrt_is_dm_core()) {
@@ -126,16 +126,16 @@ void bfs_job(void *args) {
     else {
         snrt_l1_update_next_v2(local_frontier);
     }
-    local_frontier = snrt_l1_alloc_cluster_local(size_frontier, sizeof(uint32_t));
-    local_new_frontier = snrt_l1_alloc_cluster_local(size_frontier_frac, sizeof(uint32_t));
-    local_dist = snrt_l1_alloc_cluster_local(size_dist, sizeof(uint32_t));
-    local_new_dist = snrt_l1_alloc_cluster_local(size_dist_frac, sizeof(uint32_t));
+    local_frontier = (uint32_t *) snrt_l1_alloc_cluster_local(size_frontier, sizeof(uint32_t));
+    local_new_frontier = (uint32_t *) snrt_l1_alloc_cluster_local(size_frontier_frac, sizeof(uint32_t));
+    local_dist = (int32_t *) snrt_l1_alloc_cluster_local(size_dist, sizeof(int32_t));
+    local_new_dist = (int32_t *) snrt_l1_alloc_cluster_local(size_dist_frac, sizeof(int32_t));
 
     // Load frontier and distance vectors
     if (snrt_is_dm_core()) {
         snrt_dma_start_1d(local_frontier, frontier, size_frontier);
         snrt_dma_start_1d(local_dist, dist, size_dist);
-        snrt_dma_start_1d(local_new_frontier, (void *)snrt_zero_memory_ptr(), size_frontier_frac);
+        snrt_dma_start_1d(local_new_frontier, (void *)snrt_cluster()->zeromem.mem, size_frontier_frac);
         snrt_dma_load_1d_tile(
             local_new_dist,
             local_dist,
