@@ -7,10 +7,11 @@
 
 import numpy as np
 import sys
+import os
 from pathlib import Path
 from datagen import BFSDataGen
 
-sys.path.append(str(Path(__file__).parent / '../../../util/sim/'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../../../../util/"))
 from verif_utils import Verifier  # noqa: E402
 from data_utils import to_bits  # noqa: E402
 
