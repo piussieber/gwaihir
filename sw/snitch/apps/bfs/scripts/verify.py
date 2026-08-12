@@ -12,11 +12,11 @@ from pathlib import Path
 from datagen import BFSDataGen
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../../../util/"))
-from verif_utils import Verifier  # noqa: E402
+import snitch.util.sim.verif_utils as vu # noqa: E402
 from data_utils import to_bits  # noqa: E402
 
 
-class BFSVerifier(Verifier):
+class BFSVerifier(vu.Verifier):
 
     OUTPUT_UIDS = ['out_frontier', 'out_dist']
 
@@ -34,18 +34,18 @@ class BFSVerifier(Verifier):
     def get_actual_results(self):
         self.actual_frontier = self.convert_frontier_to_bits(
             self.get_output_from_symbol('out_frontier', 'uint32_t'))
-        self.actual_dist = self.get_output_from_symbol('out_dist', 'int')
-        # print('Actual', self.actual_frontier, self.actual_dist)
+        self.actual_dist = self.get_output_from_symbol('out_dist', 'int32_t')
+        print('Actual', self.actual_frontier, self.actual_dist)
         return np.concatenate((self.actual_frontier, self.actual_dist))
 
     def get_expected_results(self):
         # Get inputs from ELF
         self.old_frontier = self.convert_frontier_to_bits(
             self.get_input_from_symbol('frontier', 'uint32_t'))
-        dist = self.get_input_from_symbol('dist', 'int').tolist()
+        dist = self.get_input_from_symbol('dist', 'int32_t').tolist()
         offsets = self.get_input_from_symbol('offsets', 'uint32_t').tolist()
         adjacencies = self.get_input_from_symbol('adjacencies', 'uint32_t').tolist()
-        # print('Original', self.old_frontier, dist)
+        print('Original', self.old_frontier, dist)
 
         # Reconstruct graph from CSR offsets and adjacencies
         self.graph = BFSDataGen().from_csr(offsets, adjacencies)

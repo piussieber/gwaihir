@@ -14,7 +14,7 @@ import random
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../../../util/"))
-import data_utils  # noqa: E402
+import snitch.util.sim.data_utils as du # noqa: E402
 from data_utils import format_scalar_definition, format_array_definition, \
                        format_array_declaration, DataGen, from_bits  # noqa: E402
 
@@ -26,7 +26,7 @@ random.seed(42)
 BURST_ALIGNMENT = 4096
 
 
-class BFSDataGen(DataGen):
+class BFSDataGen(du.DataGen):
 
     def parser(self):
         p = super().parser()
@@ -87,7 +87,7 @@ class BFSDataGen(DataGen):
         frontier_size = len(graph.nodes) / 8
         dist_size = 4 * len(graph.nodes)
         total_size = 2 * frontier_size + 2 * dist_size + graph_size
-        data_utils.validate_tcdm_footprint(total_size)
+        du.validate_tcdm_footprint(total_size)
 
     def visualize_bfs_step(self, graph, old_frontier, new_frontier, dist, title=''):
         pos = nx.spring_layout(graph, seed=42)
@@ -123,8 +123,8 @@ class BFSDataGen(DataGen):
         new_frontier, new_dist = self.golden_model(graph, frontier, dist)
 
         # Visualize BFS step
-        if not self.args.no_gui:
-            self.visualize_bfs_step(graph, frontier, new_frontier, new_dist)
+        #if not self.args.no_gui:
+        self.visualize_bfs_step(graph, frontier, new_frontier, new_dist)
 
         # Convert data to C format
         frontier = from_bits([1 if i in frontier else 0 for i in range(kwargs['num_vertices'])])
@@ -133,18 +133,18 @@ class BFSDataGen(DataGen):
             np.array, [dist, frontier, offsets, adjacencies])
 
         # Format header
-        header += [format_scalar_definition('uint32_t', 'num_vertices', kwargs['num_vertices'])]
-        header += [format_array_definition('int32_t', 'dist', dist, alignment=BURST_ALIGNMENT,
+        header += [du.format_scalar_definition('uint32_t', 'num_vertices', kwargs['num_vertices'])]
+        header += [du.format_array_definition('int32_t', 'dist', dist, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
-        header += [format_array_definition('uint32_t', 'frontier', frontier, alignment=BURST_ALIGNMENT,
+        header += [du.format_array_definition('uint32_t', 'frontier', frontier, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
-        header += [format_array_definition('uint32_t', 'offsets', offsets, alignment=BURST_ALIGNMENT,
+        header += [du.format_array_definition('uint32_t', 'offsets', offsets, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
-        header += [format_array_definition('uint32_t', 'adjacencies', adjacencies, alignment=BURST_ALIGNMENT,
+        header += [du.format_array_definition('uint32_t', 'adjacencies', adjacencies, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
-        header += [format_array_declaration('int32_t', 'out_dist', dist.shape, alignment=BURST_ALIGNMENT,
+        header += [du.format_array_declaration('int32_t', 'out_dist', dist.shape, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
-        header += [format_array_declaration('uint32_t', 'out_frontier', frontier.shape, alignment=BURST_ALIGNMENT,
+        header += [du.format_array_declaration('uint32_t', 'out_frontier', frontier.shape, alignment=BURST_ALIGNMENT,
                    section=kwargs['section'])]
 
         header = '\n\n'.join(header)
