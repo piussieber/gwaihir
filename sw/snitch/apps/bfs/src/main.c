@@ -21,6 +21,10 @@ int main() {
         .out_frontier_addr = (uint64_t)out_frontier,
         .out_dist_addr = (uint64_t)out_dist
     };
+    snrt_global_barrier();
+    snrt_mcycle();
     bfs_job(&args);
+    snrt_global_barrier();
+    snrt_mcycle();
     return 0;
 }
